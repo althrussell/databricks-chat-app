@@ -1,23 +1,9 @@
 import os, io, uuid, json, pandas as pd, typing as t
 from datetime import datetime
-from pyspark.sql import SparkSession
-
-def get_spark():
-    spark = SparkSession.getActiveSession()
-    if spark is None:
-        spark = SparkSession.builder.getOrCreate()
-    return spark
+from inference.rag import sql_exec, sql_fetch_all, get_current_user
 
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
-
-def get_user_id() -> str:
-    try:
-        spark = get_spark()
-        user = spark.sql("SELECT current_user()").first()[0]
-        return user
-    except Exception:
-        return "unknown_user"
 
 def user_volume_root(catalog: str, schema: str, volume: str, user_id: str) -> str:
     return f"/Volumes/{catalog}/{schema}/{volume}/{user_id}"
@@ -28,66 +14,78 @@ def save_file_to_volume(bytes_data: bytes, dest_path: str):
         f.write(bytes_data)
     return dest_path
 
-def ingest_to_delta(df: pd.DataFrame, table_full: str, mode: str = "append"):
-    spark = get_spark()
-    sdf = spark.createDataFrame(df)
-    sdf.write.mode(mode).format("delta").saveAsTable(table_full)
+def register_document(doc: dict, catalog: str, schema: str):
+    cols = ",".join(doc.keys())
+    vals = ", ".join([f"'{str(v).replace("'","''")}'" for v in doc.values()])
+    sql_exec(f"INSERT INTO {catalog}.{schema}.documents ({cols}) VALUES ({vals})", catalog, schema)
 
-def register_document(doc: dict, table_full: str):
-    spark = get_spark()
-    cols = list(doc.keys())
-    sdf = spark.createDataFrame([tuple(doc[c] for c in cols)], schema=",".join([f"{c} string" for c in cols]))
-    sdf.write.mode("append").saveAsTable(table_full)
+def create_csv_external_table(catalog: str, schema: str, table_name: str, csv_path: str, header: bool = True):
+    hdr = "true" if header else "false"
+    stmt = f"""
+    CREATE TABLE IF NOT EXISTS {catalog}.{schema}.{table_name}
+    USING CSV OPTIONS (header {hdr})
+    LOCATION '{csv_path}'
+    """
+    sql_exec(stmt, catalog, schema)
 
 def process_upload(file_name: str, bytes_data: bytes, catalog: str, schema: str, volume: str, tenant_id: str = "default") -> dict:
-    user = get_user_id()
+    user = get_current_user(catalog, schema)
     root = user_volume_root(catalog, schema, volume, user)
     uploads_dir = os.path.join(root, "uploads")
+    extracted_dir = os.path.join(root, "extracted")
+
     dest_path = os.path.join(uploads_dir, file_name)
     save_file_to_volume(bytes_data, dest_path)
 
     doc_id = str(uuid.uuid4())
     created_at = datetime.utcnow().isoformat()
-    documents_table = f"{catalog}.{schema}.documents"
-
     ext = (os.path.splitext(file_name)[1] or "").lower()
     total_rows = 0
+    created_tables = []
+
     if ext in [".csv", ".tsv"]:
-        sep = "," if ext == ".csv" else "\t"
-        df = pd.read_csv(io.BytesIO(bytes_data), sep=sep)
-        target_table = f"{catalog}.{schema}.u_{user.replace('@','_').replace('.','_')}_{doc_id.replace('-','_')}"
-        ingest_to_delta(df, target_table, mode="overwrite")
-        total_rows = len(df)
+        # We do NOT parse to pandas; we register as an external CSV table
+        table_name = f"u_{user.replace('@','_').replace('.','_')}_{doc_id.replace('-','_')}"
+        create_csv_external_table(catalog, schema, table_name, dest_path, header=True)
+        created_tables.append(table_name)
         register_document({
             "doc_id": doc_id,
             "user_id": user,
             "tenant_id": tenant_id,
             "source_type": "csv" if ext == ".csv" else "tsv",
-            "uc_table": target_table,
+            "uc_table": f"{catalog}.{schema}.{table_name}",
             "file_path": dest_path,
             "sheet": "",
-            "num_rows": str(total_rows),
+            "num_rows": "0",
             "created_at": created_at
-        }, documents_table)
+        }, catalog, schema)
+
     elif ext in [".xlsx", ".xls"]:
+        # Convert each sheet to CSV under extracted/, register each as an external CSV table
         xls = pd.ExcelFile(io.BytesIO(bytes_data))
         for sheet in xls.sheet_names:
             df = xls.parse(sheet_name=sheet)
-            target_table = f"{catalog}.{schema}.u_{user.replace('@','_').replace('.','_')}_{doc_id.replace('-','_')}_{sheet.replace(' ','_')}"
-            ingest_to_delta(df, target_table, mode="overwrite")
-            total_rows += len(df)
+            # Save to CSV
+            ensure_dir(extracted_dir)
+            csv_path = os.path.join(extracted_dir, f"{os.path.splitext(file_name)[0]}_{sheet}.csv")
+            df.to_csv(csv_path, index=False)
+            table_name = f"u_{user.replace('@','_').replace('.','_')}_{doc_id.replace('-','_')}_{sheet.replace(' ','_')}"
+            create_csv_external_table(catalog, schema, table_name, csv_path, header=True)
+            created_tables.append(table_name)
             register_document({
                 "doc_id": doc_id,
                 "user_id": user,
                 "tenant_id": tenant_id,
                 "source_type": "excel",
-                "uc_table": target_table,
-                "file_path": dest_path,
+                "uc_table": f"{catalog}.{schema}.{table_name}",
+                "file_path": csv_path,
                 "sheet": sheet,
-                "num_rows": str(len(df)),
+                "num_rows": "0",
                 "created_at": created_at
-            }, documents_table)
+            }, catalog, schema)
+
     else:
+        # Non-tabular: just register the file in documents
         register_document({
             "doc_id": doc_id,
             "user_id": user,
@@ -98,6 +96,6 @@ def process_upload(file_name: str, bytes_data: bytes, catalog: str, schema: str,
             "sheet": "",
             "num_rows": "0",
             "created_at": created_at
-        }, documents_table)
+        }, catalog, schema)
 
-    return {"doc_id": doc_id, "file_path": dest_path, "rows": total_rows}
+    return {"doc_id": doc_id, "file_path": dest_path, "rows": total_rows, "tables": created_tables}

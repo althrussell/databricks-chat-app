@@ -1,12 +1,9 @@
--- Adjust these before running
+-- You can still run these once to bootstrap in a Notebook or SQL editor:
 CREATE CATALOG IF NOT EXISTS app_catalog;
 USE CATALOG app_catalog;
 CREATE SCHEMA IF NOT EXISTS app;
-
--- Volume for user files and branding
 CREATE VOLUME IF NOT EXISTS app.user_files;
 
--- Conversations table
 CREATE TABLE IF NOT EXISTS app.conversations (
   conversation_id STRING,
   user_id STRING,
@@ -19,11 +16,10 @@ CREATE TABLE IF NOT EXISTS app.conversations (
   meta MAP<STRING, STRING>)
 TBLPROPERTIES (delta.enableChangeDataFeed = true);
 
--- Messages table
 CREATE TABLE IF NOT EXISTS app.messages (
   message_id STRING,
   conversation_id STRING,
-  role STRING,              -- user | assistant | system | tool
+  role STRING,
   content STRING,
   tool_invocations ARRAY<STRING>,
   tokens_in INT,
@@ -32,7 +28,6 @@ CREATE TABLE IF NOT EXISTS app.messages (
   status STRING)
 TBLPROPERTIES (delta.enableChangeDataFeed = true);
 
--- Usage events for cost/billing dashboards
 CREATE TABLE IF NOT EXISTS app.usage_events (
   event_id STRING,
   conversation_id STRING,
@@ -44,21 +39,19 @@ CREATE TABLE IF NOT EXISTS app.usage_events (
   created_at TIMESTAMP,
   meta MAP<STRING, STRING>);
 
--- Document registry
 CREATE TABLE IF NOT EXISTS app.documents (
   doc_id STRING,
   user_id STRING,
   tenant_id STRING,
-  source_type STRING,       -- csv | excel | parquet | txt | pdf (extensible)
+  source_type STRING,
   uc_table STRING,
   file_path STRING,
   sheet STRING,
   num_rows BIGINT,
   created_at TIMESTAMP);
 
--- Theme configuration (optional; or store as JSON files in Volume)
 CREATE TABLE IF NOT EXISTS app.theme_config (
   tenant_id STRING,
   name STRING,
-  config STRING,            -- JSON string
+  config STRING,
   updated_at TIMESTAMP);

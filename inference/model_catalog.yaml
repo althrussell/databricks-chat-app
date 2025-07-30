@@ -7,7 +7,6 @@ models:
     allowed: true
     context_window: 200000
     max_output_tokens: 2048
-
   - id: "dbrx-instruct"
     display_name: "DBRX Instruct"
     provider: "serving"

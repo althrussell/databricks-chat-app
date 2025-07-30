@@ -2,10 +2,9 @@ import os, io, json, time, uuid, pathlib, yaml, typing as t
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from pyspark.sql import SparkSession
 
-from inference.rag import call_llm_via_serving
-from pipelines.upload_ingest import process_upload, get_spark
+from inference.rag import call_llm_via_serving, sql_exec, sql_fetch_all, get_current_user
+from pipelines.upload_ingest import process_upload
 
 # --------- Config helpers ---------
 def load_yaml(path: str) -> dict:
@@ -30,14 +29,6 @@ def ensure_session_state():
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
-
-def get_user_id() -> str:
-    try:
-        spark = get_spark()
-        user = spark.sql("SELECT current_user()").first()[0]
-        return user
-    except Exception:
-        return st.session_state.get("user_id") or ""
 
 # --------- UC helpers ---------
 def vol_root(cfg: dict, user_id: str) -> str:
@@ -84,53 +75,37 @@ def apply_theme(theme: dict):
     '''
     st.markdown(css, unsafe_allow_html=True)
 
-# --------- Spark ---------
-def get_spark():
-    spark = SparkSession.getActiveSession()
-    if spark is None:
-        spark = SparkSession.builder.getOrCreate()
-    return spark
-
-# --------- Conversation storage ---------
-def list_conversations(cfg: dict, user_id: str) -> pd.DataFrame:
-    spark = get_spark()
-    df = spark.sql(f"""
+# --------- Lakehouse CRUD via SQL Warehouse ---------
+def list_conversations(cfg: dict, user_id: str) -> list[dict]:
+    rows = sql_fetch_all(f"""
         SELECT conversation_id, title, model, created_at, updated_at
         FROM {tbl(cfg, 'conversations')}
         WHERE user_id = '{user_id}'
         ORDER BY updated_at DESC
-    """).toPandas() if spark._jsparkSession is not None else pd.DataFrame(columns=["conversation_id","title","model","created_at","updated_at"])
-    return df
+    """, cfg["app"]["catalog"], cfg["app"]["schema"])
+    return rows
 
 def load_messages(cfg: dict, conversation_id: str) -> t.List[dict]:
-    spark = get_spark()
-    pdf = spark.sql(f"""
+    rows = sql_fetch_all(f"""
         SELECT role, content, created_at FROM {tbl(cfg, 'messages')}
         WHERE conversation_id = '{conversation_id}'
         ORDER BY created_at ASC
-    """).toPandas()
-    return [{"role": r["role"], "content": r["content"]} for _, r in pdf.iterrows()]
+    """, cfg["app"]["catalog"], cfg["app"]["schema"])
+    return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 def save_conversation(cfg: dict, conversation_id: str, user_id: str, tenant_id: str, title: str, model: str):
-    spark = get_spark()
-    spark.sql(f"""
+    sql_exec(f"""
       INSERT INTO {tbl(cfg, 'conversations')} VALUES (
         '{conversation_id}', '{user_id}', '{tenant_id}', '{title}', '{model}', ARRAY(), current_timestamp(), current_timestamp(), map())
-    """)
+    """, cfg["app"]["catalog"], cfg["app"]["schema"])
 
-def save_message(cfg: dict, conversation_id: str, role: str, content: str,
-                 tokens_in: int = 0, tokens_out: int = 0, status: str = "ok"):
-    spark = get_spark()
+def save_message(cfg: dict, conversation_id: str, role: str, content: str, tokens_in: int = 0, tokens_out: int = 0, status: str = "ok"):
     msg_id = str(uuid.uuid4())
-    # IMPORTANT: precompute the escaped content so the f-string expression
-    # does not include a backslash (which triggered your SyntaxError).
-    escaped = content.replace("$", "\\$")
-    query = f"""
+    escaped = content.replace("$", "\$").replace("'", "''")
+    sql_exec(f"""
       INSERT INTO {tbl(cfg, 'messages')} VALUES (
         '{msg_id}', '{conversation_id}', '{role}', $${escaped}$$, ARRAY(), {tokens_in}, {tokens_out}, current_timestamp(), '{status}')
-    """
-    spark.sql(query)
-
+    """, cfg["app"]["catalog"], cfg["app"]["schema"])
 
 # --------- Models ---------
 def allowed_models(cfg: dict, model_catalog: dict):
@@ -138,7 +113,6 @@ def allowed_models(cfg: dict, model_catalog: dict):
     models = model_catalog.get("models", [])
     if allow_ids:
         return [m for m in models if m.get("id") in allow_ids]
-    # else fallback to allowed: true
     return [m for m in models if m.get("allowed", False)]
 
 # --------- UI ---------
@@ -149,29 +123,27 @@ def sidebar(cfg: dict, model_catalog: dict, user_id: str):
         if st.button("➕ New chat") or st.session_state.get("current_conv") is None:
             conv_id = str(uuid.uuid4())
             st.session_state["current_conv"] = conv_id
-            # Set default model id as first allowed
             am = allowed_models(cfg, model_catalog)
             default_model_id = am[0]["id"] if am else ""
             st.session_state["selected_model_id"] = st.session_state.get("selected_model_id") or default_model_id
             save_conversation(cfg, conv_id, user_id, st.session_state.get("tenant_id","default"), "New Chat", st.session_state["selected_model_id"])
 
-        selected_conv = None
-        if not chats.empty:
-            titles = [f"{r['title']} ({r['created_at']:%b %d})" for _, r in chats.iterrows()]
+        selected_conv = st.session_state.get("current_conv")
+        if chats:
+            titles = [f"{r['title']} ({r['created_at'][:10]})" for r in chats]
             idx = st.selectbox("Your conversations", options=list(range(len(titles))), format_func=lambda i: titles[i], index=0 if len(titles)>0 else None)
             if idx is not None:
-                selected_conv = chats.iloc[idx]["conversation_id"]
-        st.session_state["current_conv"] = selected_conv or st.session_state["current_conv"]
+                selected_conv = chats[idx]["conversation_id"]
+        st.session_state["current_conv"] = selected_conv
 
         st.markdown("---")
         st.markdown("### ⚙️ Model")
         am = allowed_models(cfg, model_catalog)
         if not am:
-            st.error("No allowed models configured. Edit config/app_config.yaml → app.allowed_model_ids or set allowed:true in inference/model_catalog.yaml.")
+            st.error("No allowed models configured. Edit config/app_config.yaml or model_catalog.yaml.")
         else:
             name_to_id = {m["display_name"]: m["id"] for m in am}
             names = list(name_to_id.keys())
-            # Default selection
             cur_id = st.session_state.get("selected_model_id") or am[0]["id"]
             cur_name = [n for n, mid in name_to_id.items() if mid == cur_id][0]
             picked = st.selectbox("Model", names, index=names.index(cur_name))
@@ -184,11 +156,11 @@ def sidebar(cfg: dict, model_catalog: dict, user_id: str):
         up = st.file_uploader("CSV or Excel", type=["csv","tsv","xlsx","xls"], accept_multiple_files=False)
         if up is not None:
             info = process_upload(up.name, up.getvalue(), cfg["app"]["catalog"], cfg["app"]["schema"], cfg["app"]["volume"], st.session_state.get("tenant_id","default"))
-            st.success(f"Uploaded {up.name} → {info['rows']} row(s).")
+            st.success(f"Uploaded {up.name}. Registered tables: {', '.join(info.get('tables', [])) or 'none'}")
 
 def chat_area(cfg: dict, model_catalog: dict, theme: dict):
     st.markdown(f"#### {cfg['app']['title']}")
-    st.caption("Chat with Databricks pay‑per‑token models. (RAG hooks available)")
+    st.caption("Chat with Databricks pay‑per‑token models. (No Gateway. SQL Warehouse for storage.)")
 
     conv = st.session_state.get("current_conv")
     if conv:
@@ -201,11 +173,11 @@ def chat_area(cfg: dict, model_catalog: dict, theme: dict):
     if prompt and st.session_state.get("selected_model_id"):
         save_message(cfg, conv, "user", prompt)
 
-        # Reconstruct full history
+        # Build context
         history = load_messages(cfg, conv)
         messages = [{"role": "system", "content": "You are a helpful assistant."}] + history
 
-        # Resolve selected model
+        # Resolve model
         models = {m["id"]: m for m in model_catalog.get("models", [])}
         model = models[st.session_state["selected_model_id"]]
         endpoint = model["endpoint"]
@@ -221,9 +193,9 @@ def chat_area(cfg: dict, model_catalog: dict, theme: dict):
 def main():
     cfg, model_catalog = get_cfg()
     ensure_session_state()
-    # Resolve user id
+    # Resolve user id via SQL Warehouse current_user()
     if not st.session_state.get("user_id"):
-        uid = get_user_id()
+        uid = get_current_user(cfg["app"]["catalog"], cfg["app"]["schema"])
         if uid:
             st.session_state["user_id"] = uid
     if not st.session_state.get("user_id"):

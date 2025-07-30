@@ -1,12 +1,9 @@
 app:
   title: "Databricks Chat App"
-  catalog: ${env:APP_CATALOG, "app_catalog"}
+  catalog: ${env:APP_CATALOG, "shared"}
   schema: ${env:APP_SCHEMA, "app"}
   volume: ${env:APP_VOLUME, "user_files"}
-  # Controls which models appear in the UI picker.
-  # If empty or omitted, the UI falls back to models in model_catalog.yaml with allowed: true
   allowed_model_ids: ["sonnet-4"]
-  # Feature toggles
   features:
     enable_rag: false
     enable_sql_tool: false
