@@ -1,0 +1,15 @@
+# Application configuration
+app:
+  title: "Databricks Chat App"
+  default_tenant_id: "default"
+  default_llm_route: ${env:APP_DEFAULT_LLM_ROUTE, "chat-dbrx"}
+  default_embed_route: ${env:APP_DEFAULT_EMBED_ROUTE, "embed-bge"}
+  catalog: ${env:APP_CATALOG, "app_catalog"}
+  schema: ${env:APP_SCHEMA, "app"}
+  volume: ${env:APP_VOLUME, "user_files"}
+  # Feature toggles
+  features:
+    enable_rag: true
+    enable_sql_tool: false
+    enable_budgets: true
+    allow_model_override: true

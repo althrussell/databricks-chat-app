@@ -1,0 +1,19 @@
+# List of models exposed through AI Gateway or Model Serving
+# These appear in the model selector
+models:
+  - id: "chat-dbrx"
+    display_name: "DBRX Instruct (pay-per-token)"
+    provider: "ai-gateway"
+    route: "chat-dbrx"
+    context_window: 32768
+    input_cost_per_1k: 0.0      # Fill with your pricing
+    output_cost_per_1k: 0.0     # Fill with your pricing
+    max_output_tokens: 2048
+  - id: "chat-llama3-70b"
+    display_name: "Llama 3 70B (gateway)"
+    provider: "ai-gateway"
+    route: "chat-llama3-70b"
+    context_window: 8192
+    input_cost_per_1k: 0.0
+    output_cost_per_1k: 0.0
+    max_output_tokens: 1024
