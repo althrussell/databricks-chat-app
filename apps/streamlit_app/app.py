@@ -12,11 +12,27 @@ def load_yaml(path: str) -> dict:
         return yaml.safe_load(f)
 
 def get_cfg():
-    root = pathlib.Path(__file__).resolve().parents[2]
-    cfg = load_yaml(str(root / "config" / "app_config.yaml"))
-    model_catalog = load_yaml(str(root / "inference" / "model_catalog.yaml"))
-    return cfg, model_catalog
+    here = pathlib.Path(__file__).resolve().parent  # directory containing app.py
+    # Try common locations (app-local first, then parent in case of different packaging)
+    cfg_candidates = [
+        here / "config" / "app_config.yaml",
+        here.parent / "config" / "app_config.yaml",
+    ]
+    cfg_path = next((p for p in cfg_candidates if p.exists()), None)
+    if not cfg_path:
+        raise FileNotFoundError("app_config.yaml not found. Looked at: " + ", ".join([str(p) for p in cfg_candidates]))
 
+    mc_candidates = [
+        here / "inference" / "model_catalog.yaml",
+        here.parent / "inference" / "model_catalog.yaml",
+    ]
+    mc_path = next((p for p in mc_candidates if p.exists()), None)
+    if not mc_path:
+        raise FileNotFoundError("model_catalog.yaml not found. Looked at: " + ", ".join([str(p) for p in mc_candidates]))
+
+    cfg = load_yaml(str(cfg_path))
+    model_catalog = load_yaml(str(mc_path))
+    return cfg, model_catalog
 def ensure_session_state():
     defaults = {
         "user_id": None,

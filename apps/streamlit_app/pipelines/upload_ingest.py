@@ -22,7 +22,6 @@ def register_document(doc: dict, catalog: str, schema: str):
     stmt = f"INSERT INTO {catalog}.{schema}.documents ({cols}) VALUES ({vals})"
     sql_exec(stmt, catalog, schema)
 
-
 def create_csv_external_table(catalog: str, schema: str, table_name: str, csv_path: str, header: bool = True):
     hdr = "true" if header else "false"
     stmt = f"""
