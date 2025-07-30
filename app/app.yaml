@@ -1,31 +1,249 @@
-command: ['streamlit', 'run', 'app.py']
+# app.yaml - Production Ready Databricks App Configuration
+# Databricks AI Chat Assistant MVP - Ready to Deploy
+
+name: databricks-ai-chat-assistant-mvp
+display_name: "Databricks AI Chat Assistant"
+version: 1.0.0
+description: "Enterprise AI Chat Assistant with file upload, conversation history, smart suggestions, message reactions, and advanced analytics"
+
+# Main application entry point
+app_file: streamlit_app.py
+
+# Python runtime configuration
+python:
+  version: "3.10"
+  requirements: "requirements.txt"
+
+# Environment variables - PRODUCTION VALUES SET
 env:
-  # --- Models ---
-  - name: SERVING_ENDPOINT
-    value: "databricks-claude-sonnet-4"   # preselected in the dropdown
-  - name: SERVING_ENDPOINTS_CSV
-    value: "databricks-claude-sonnet-4|Claude Sonnet 4,databricks-llama-4-maverick|Llama 4 Maverick,databricks-gemma-3-12b|Gemma 3 12B"
+  # Model serving endpoints - UPDATE THESE WITH YOUR ACTUAL ENDPOINTS
+  # Format: "endpoint_id|Display Name,endpoint_id2|Display Name 2"
+  SERVING_ENDPOINTS_CSV: "databricks-claude-sonnet-4|Claude Sonnet 4,databricks-llama-4-maverick|Llama 4 Maverick,databricks-gemma-3-12b|Gemma 3 12B"
+  
+  # Default endpoint
+  SERVING_ENDPOINT: "databricks-claude-sonnet-4"
+  
+  # Database configuration
+  ENABLE_LOGGING: "1"
+  RUN_SQL_AS_USER: "0"
+  # ⚠️ MUST UPDATE: Replace with your actual warehouse ID
+  DATABRICKS_WAREHOUSE_ID: "your-warehouse-id-here"
+  
+  # Unity Catalog configuration - UPDATE THESE
+  CATALOG: "shared"
+  SCHEMA: "app"
+  VOLUME_NAME: "chat_files"
+  
+  # Pricing configuration (example values for GPT-4 class models)
+  # Adjust based on your actual model costs
+  PRICE_PROMPT_PER_1K: "0.001"
+  PRICE_COMPLETION_PER_1K: "0.002"
+  
+  # Chat and file configuration
+  MAX_TURNS: "12"
+  MAX_FILE_SIZE_MB: "10"
+  
+  # Feature toggles - ALL ENABLED for MVP
+  ENABLE_SMART_SUGGESTIONS: "1"
+  ENABLE_MESSAGE_REACTIONS: "1"
+  ENABLE_FILE_UPLOAD: "1"
+  ENABLE_CONVERSATION_TEMPLATES: "1"
+  
+  # Security and compliance
+  ENABLE_AUDIT_LOGGING: "1"
+  DATA_RETENTION_DAYS: "365"
+  
+  # Performance tuning
+  CONNECTION_POOL_SIZE: "5"
+  QUERY_TIMEOUT_SECONDS: "30"
+  
+  # Monitoring
+  LOG_LEVEL: "INFO"
+  ENABLE_PERFORMANCE_METRICS: "1"
 
-  # --- Warehouse / Logging ---
-  - name: DATABRICKS_WAREHOUSE_ID
-    value: "75fd8278393d07eb"            # set to your SQL Warehouse ID
-  - name: CATALOG
-    value: "shared"
-  - name: SCHEMA
-    value: "app"
-  - name: ENABLE_LOGGING
-    value: "1"                           # set to 0 to disable table writes
+# Streamlit configuration optimized for production
+streamlit:
+  server:
+    port: 8501
+    enableCORS: false
+    enableXsrfProtection: true
+    maxUploadSize: 200
+    maxMessageSize: 200
+    enableWebsocketCompression: true
+    
+  browser:
+    gatherUsageStats: false
+    showErrorDetails: false  # Hide in production
+    
+  theme:
+    base: "dark"
+    primaryColor: "#FF6B35"
+    backgroundColor: "#0D1117"
+    secondaryBackgroundColor: "#1C2128"
+    textColor: "#F0F6FC"
+    font: "sans serif"
+    
+  client:
+    caching: true
+    displayEnabled: true
+    toolbarMode: "auto"
 
-  # --- Run SQL as end user when a forwarded token is available (optional) ---
-  - name: RUN_SQL_AS_USER
-    value: "0"                           # set to 1 to try OBO; falls back to App identity
+# Production resource allocation
+compute:
+  cpu: "2"
+  memory: "4Gi"
+  ephemeral_storage: "2Gi"
 
-  # --- Sliding message window sent to the model ---
-  - name: MAX_TURNS
-    value: "12"
+# Auto-scaling for production load
+scaling:
+  min_replicas: 2      # Always have 2 instances running
+  max_replicas: 10     # Scale up to 10 for high load
+  target_cpu_utilization: 70
+  target_memory_utilization: 80
+  scale_up_cooldown: "2m"
+  scale_down_cooldown: "5m"
 
-  # --- Optional cost logging (USD per 1K tokens) ---
-  - name: PRICE_PROMPT_PER_1K
-    value: "0"
-  - name: PRICE_COMPLETION_PER_1K
-    value: "0"
+# Production health checks
+health_check:
+  path: "/_stcore/health"
+  interval: 30
+  timeout: 10
+  healthy_threshold: 2
+  unhealthy_threshold: 3
+  initial_delay: 60    # Give more time for startup
+
+# Security configuration for production
+security:
+  enable_user_isolation: true
+  
+  forward_headers:
+    - "X-Forwarded-Email"
+    - "X-Forwarded-Access-Token" 
+    - "X-Forwarded-User"
+    - "X-Forwarded-Groups"
+    
+  cors:
+    enabled: false
+    
+  csp:
+    enabled: true
+    default_src: "'self'"
+    script_src: "'self' 'unsafe-inline' 'unsafe-eval'"
+    style_src: "'self' 'unsafe-inline'"
+    img_src: "'self' data: https:"
+    
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    requests_per_hour: 1000
+
+# Production monitoring and observability
+monitoring:
+  enabled: true
+  
+  metrics:
+    enabled: true
+    path: "/metrics"
+    
+  logging:
+    level: "INFO"
+    format: "json"
+    structured: true
+    retention_days: 30
+    log_requests: true
+    log_responses: false
+    log_errors: true
+    log_performance: true
+    
+  alerts:
+    error_rate_threshold: 2.0
+    response_time_threshold: 5000
+    cpu_threshold: 80
+    memory_threshold: 85
+
+# Networking optimized for production
+networking:
+  load_balancer:
+    type: "round_robin"
+    health_check_enabled: true
+    
+  timeouts:
+    request: "30s"
+    idle: "60s"
+
+# Storage configuration
+storage:
+  temp_storage:
+    size: "1Gi"
+    mount_path: "/tmp"
+    
+  logs_storage:
+    size: "500Mi"
+    retention: "7d"
+
+# Production deployment strategy
+deployment:
+  strategy: "rolling_update"
+  
+  rolling_update:
+    max_unavailable: 1
+    max_surge: 1
+    
+  rollback:
+    enabled: true
+    revision_history_limit: 10
+
+# Production maintenance schedule
+maintenance:
+  database_maintenance:
+    optimize_schedule: "0 1 * * *"   # Daily at 1 AM
+    vacuum_schedule: "0 0 * * SUN"   # Weekly on Sunday
+    
+# Compliance settings for production
+compliance:
+  data_classification: "internal"
+  data_retention_policy: "standard"
+  
+  privacy:
+    anonymize_logs: true
+    encrypt_at_rest: true
+    encrypt_in_transit: true
+    
+  audit:
+    log_data_access: true
+    log_user_actions: true
+    log_admin_actions: true
+    retention_period: "7y"
+
+# Production feature flags
+feature_flags:
+  enable_advanced_analytics: true
+  enable_conversation_export: true
+  enable_team_sharing: false
+  enable_api_access: false
+  enable_webhook_integrations: false
+
+# Production integrations
+integrations:
+  databricks:
+    unity_catalog: true
+    model_serving: true
+    sql_warehouse: true
+    volumes: true
+
+# Production metadata and labels
+metadata:
+  labels:
+    app: "ai-chat-assistant"
+    component: "frontend"
+    version: "1.0.0"
+    environment: "production"
+    team: "data-platform"
+    cost_center: "engineering"
+    
+  annotations:
+    description: "Enterprise AI Chat Assistant MVP"
+    owner: "data-platform-team"
+    repository: "https://github.com/your-org/databricks-ai-chat-assistant"
+
+

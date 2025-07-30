@@ -512,6 +512,15 @@ def get_conversation_messages(conv_id: str, user_id: str):
 
 def log_message(conv_id: str, role: str, content: str, tokens_in: int = 0, tokens_out: int = 0, status: str = "ok") -> str:
     if not _conn_ok(): return ""
+    
+    # Validate role (since we removed CHECK constraint)
+    if role not in ['user', 'assistant', 'system']:
+        raise ValueError(f"Invalid role: {role}. Must be one of: user, assistant, system")
+    
+    # Validate status (since we removed CHECK constraint)
+    if status not in ['ok', 'error', 'pending']:
+        raise ValueError(f"Invalid status: {status}. Must be one of: ok, error, pending")
+    
     message_id = str(uuid.uuid4())
     sql_exec(f"""
         INSERT INTO {fqn('messages')} (message_id, conversation_id, role, content, tool_invocations, tokens_in, tokens_out, created_at, status)
@@ -528,7 +537,13 @@ def log_message_file(message_id: str, file_path: str, filename: str):
 
 def log_message_reaction(message_id: str, user_id: str, reaction_type: str):
     if not _conn_ok(): return
-    # Upsert reaction
+    
+    # Validate reaction_type (since we removed CHECK constraint)
+    valid_reactions = ['like', 'dislike', 'love', 'helpful', 'not_helpful']
+    if reaction_type not in valid_reactions:
+        raise ValueError(f"Invalid reaction_type: {reaction_type}. Must be one of: {', '.join(valid_reactions)}")
+    
+    # Upsert reaction (delete existing, then insert new)
     sql_exec(f"DELETE FROM {fqn('message_reactions')} WHERE message_id = '{message_id}' AND user_id = '{_esc(user_id)}'")
     sql_exec(f"""
         INSERT INTO {fqn('message_reactions')} (message_id, user_id, reaction_type, created_at)
