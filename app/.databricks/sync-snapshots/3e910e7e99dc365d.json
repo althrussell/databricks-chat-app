@@ -1,0 +1,23 @@
+{
+  "version": "v1",
+  "host": "https://e2-demo-west.cloud.databricks.com",
+  "remote_path": "/Workspace/Users/al.thrussell@databricks.com/chat",
+  "last_modified_times": {
+    "app.py": "2025-07-31T08:34:20.628062573+10:00",
+    "app.yaml": "2025-07-30T10:55:20+10:00",
+    "model_serving_utils.py": "2025-07-30T10:55:20+10:00",
+    "requirements.txt": "2025-07-30T10:55:20+10:00"
+  },
+  "local_to_remote_names": {
+    "app.py": "app.py",
+    "app.yaml": "app.yaml",
+    "model_serving_utils.py": "model_serving_utils.py",
+    "requirements.txt": "requirements.txt"
+  },
+  "remote_to_local_names": {
+    "app.py": "app.py",
+    "app.yaml": "app.yaml",
+    "model_serving_utils.py": "model_serving_utils.py",
+    "requirements.txt": "requirements.txt"
+  }
+}
