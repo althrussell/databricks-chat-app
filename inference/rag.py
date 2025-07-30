@@ -1,11 +1,4 @@
-import os, math, json, time, uuid, typing as t
-import requests
-
-# Optional Vector Search client (installed in DB runtime)
-try:
-    from databricks.vector_search.client import VectorSearchClient
-except Exception:
-    VectorSearchClient = None
+import os, json, typing as t, requests
 
 def _ws():
     host = os.environ.get("APP_DATABRICKS_HOST") or os.environ.get("DATABRICKS_HOST")
@@ -14,57 +7,38 @@ def _ws():
         raise RuntimeError("Workspace host/token not configured. Set APP_DATABRICKS_HOST and APP_DATABRICKS_TOKEN.")
     return host.rstrip("/"), token
 
-# ---- AI Gateway helpers ----
-def call_llm_via_gateway(messages: t.List[dict], route: str, max_tokens: int = 512, temperature: float = 0.2):
+def call_llm_via_serving(messages: t.List[dict], endpoint_name: str, max_tokens: int = 512, temperature: float = 0.2, schema: str = "openai-chat", raw_template: t.Optional[dict]=None):
     host, token = _ws()
-    url = f"{host}/ai-gateway/routes/{route}/invocations"
+    url = f"{host}/serving-endpoints/{endpoint_name}/invocations"
     headers = {"Authorization": f"Bearer {token}"}
-    payload = {
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature
-    }
+    if schema == "openai-chat":
+        payload = {
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+    elif schema == "anthropic":
+        # Map OpenAI-style messages to simple Anthropic-style (text-only). Adjust as needed for tools/images.
+        def map_msg(m):
+            role = m.get("role","user")
+            content = m.get("content","")
+            # Anthropic expects list-of-content blocks per message
+            return {"role": role, "content": [{"type":"text","text": content}] if isinstance(content, str) else content}
+        payload = {
+            "messages": [map_msg(m) for m in messages if m.get("role") in ("system","user","assistant")],
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+    else:  # raw passthrough
+        payload = raw_template or {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+
     r = requests.post(url, headers=headers, json=payload, timeout=120)
     r.raise_for_status()
     data = r.json()
-    # Expecting OpenAI-like response from gateway
-    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-    usage = data.get("usage", {})
+    # Prefer OpenAI-like response fields
+    content = ""
+    usage = {}
+    if isinstance(data, dict):
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "") or data.get("output_text","")
+        usage = data.get("usage", {}) or {}
     return content, usage
-
-def embed_texts_via_gateway(texts: t.List[str], embed_route: str) -> t.List[t.List[float]]:
-    host, token = _ws()
-    url = f"{host}/ai-gateway/routes/{embed_route}/invocations"
-    headers = {"Authorization": f"Bearer {token}"}
-    payload = {"input": texts}
-    r = requests.post(url, headers=headers, json=payload, timeout=120)
-    r.raise_for_status()
-    data = r.json()
-    # Expect embeddings under "data"[i]["embedding"] per OpenAI compat
-    out = []
-    for item in data.get("data", []):
-        out.append(item.get("embedding"))
-    return out
-
-# ---- Vector Search helpers (skeleton) ----
-def get_vs_client():
-    if VectorSearchClient is None:
-        raise RuntimeError("databricks-vectorsearch package not available in this environment.")
-    host, token = _ws()
-    return VectorSearchClient(workspace_url=host.replace("https://",""), personal_access_token=token)
-
-def upsert_chunks_to_vs(index_full_name: str, chunk_ids: t.List[str], embeddings: t.List[t.List[float]], metadatas: t.List[dict]):
-    vs = get_vs_client()
-    # This assumes index already exists and schema matches your embedding dimension
-    rows = []
-    for cid, emb, meta in zip(chunk_ids, embeddings, metadatas):
-        row = {"id": cid, "vector": emb}
-        row.update(meta)
-        rows.append(row)
-    # Batch upserts
-    vs.index(index_full_name).upsert(rows)
-
-def query_vs(index_full_name: str, embedding: t.List[float], k: int = 5) -> t.List[dict]:
-    vs = get_vs_client()
-    res = vs.index(index_full_name).similarity_search(embedding=embedding, k=k)
-    return res.get("results", [])

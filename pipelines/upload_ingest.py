@@ -12,7 +12,6 @@ def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
 
 def get_user_id() -> str:
-    # Prefer Spark current_user()
     try:
         spark = get_spark()
         user = spark.sql("SELECT current_user()").first()[0]
@@ -51,7 +50,6 @@ def process_upload(file_name: str, bytes_data: bytes, catalog: str, schema: str,
     created_at = datetime.utcnow().isoformat()
     documents_table = f"{catalog}.{schema}.documents"
 
-    # Load with pandas and write to Delta (simple approach)
     ext = (os.path.splitext(file_name)[1] or "").lower()
     total_rows = 0
     if ext in [".csv", ".tsv"]:
@@ -90,7 +88,6 @@ def process_upload(file_name: str, bytes_data: bytes, catalog: str, schema: str,
                 "created_at": created_at
             }, documents_table)
     else:
-        # Store file only, and let user handle later
         register_document({
             "doc_id": doc_id,
             "user_id": user,

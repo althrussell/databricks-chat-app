@@ -1,4 +1,5 @@
 -- Adjust these before running
+CREATE CATALOG IF NOT EXISTS app_catalog;
 USE CATALOG app_catalog;
 CREATE SCHEMA IF NOT EXISTS app;
 

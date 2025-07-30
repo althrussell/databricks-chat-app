@@ -4,8 +4,7 @@ import pandas as pd
 from datetime import datetime
 from pyspark.sql import SparkSession
 
-# Local modules
-from inference.rag import call_llm_via_gateway, embed_texts_via_gateway
+from inference.rag import call_llm_via_serving
 from pipelines.upload_ingest import process_upload, get_spark
 
 # --------- Config helpers ---------
@@ -14,7 +13,7 @@ def load_yaml(path: str) -> dict:
         return yaml.safe_load(f)
 
 def get_cfg():
-    root = pathlib.Path(__file__).resolve().parents[2]  # repo root
+    root = pathlib.Path(__file__).resolve().parents[2]
     cfg = load_yaml(str(root / "config" / "app_config.yaml"))
     model_catalog = load_yaml(str(root / "inference" / "model_catalog.yaml"))
     return cfg, model_catalog
@@ -22,11 +21,9 @@ def get_cfg():
 def ensure_session_state():
     defaults = {
         "user_id": None,
-        "tenant_id": os.environ.get("APP_TENANT_ID_DEFAULT", "default"),
+        "tenant_id": "default",
         "current_conv": None,
-        "messages": {},
-        "selected_model": None,
-        "use_rag": True,
+        "selected_model_id": None,
         "temperature": 0.2,
         "max_tokens": 768
     }
@@ -35,23 +32,20 @@ def ensure_session_state():
             st.session_state[k] = v
 
 def get_user_id() -> str:
-    # Prefer Spark current_user()
     try:
         spark = get_spark()
         user = spark.sql("SELECT current_user()").first()[0]
         return user
     except Exception:
-        # Fallback to prompted id
         return st.session_state.get("user_id") or ""
 
-# --------- UC paths ---------
+# --------- UC helpers ---------
 def vol_root(cfg: dict, user_id: str) -> str:
     cat = cfg["app"]["catalog"]
     sch = cfg["app"]["schema"]
     vol = cfg["app"]["volume"]
     return f"/Volumes/{cat}/{sch}/{vol}/{user_id}"
 
-# --------- Lakehouse tables ---------
 def tbl(cfg: dict, name: str) -> str:
     return f"{cfg['app']['catalog']}.{cfg['app']['schema']}.{name}"
 
@@ -81,21 +75,11 @@ def apply_theme(theme: dict):
       --text: {text};
       --radius: {radius}px;
     }}
-    .stApp {{
-      background: var(--surface);
-      color: var(--text);
-    }}
-    .chat-bubble {{
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius);
-      margin-bottom: 0.5rem;
-      border: 1px solid rgba(0,0,0,0.05);
-    }}
+    .stApp {{ background: var(--surface); color: var(--text); }}
+    .chat-bubble {{ padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 0.5rem; border: 1px solid rgba(0,0,0,0.05); }}
     .chat-user {{ background: rgba(12,108,242,0.08); }}
     .chat-assistant {{ background: #fff; }}
-    .chat-title {{
-      font-size: 0.9rem; opacity: 0.7;
-    }}
+    .chat-title {{ font-size: 0.9rem; opacity: 0.7; }}
     </style>
     '''
     st.markdown(css, unsafe_allow_html=True)
@@ -125,8 +109,7 @@ def load_messages(cfg: dict, conversation_id: str) -> t.List[dict]:
         WHERE conversation_id = '{conversation_id}'
         ORDER BY created_at ASC
     """).toPandas()
-    msgs = [{"role": row["role"], "content": row["content"]} for _, row in pdf.iterrows()]
-    return msgs
+    return [{"role": r["role"], "content": r["content"]} for _, r in pdf.iterrows()]
 
 def save_conversation(cfg: dict, conversation_id: str, user_id: str, tenant_id: str, title: str, model: str):
     spark = get_spark()
@@ -135,60 +118,79 @@ def save_conversation(cfg: dict, conversation_id: str, user_id: str, tenant_id: 
         '{conversation_id}', '{user_id}', '{tenant_id}', '{title}', '{model}', ARRAY(), current_timestamp(), current_timestamp(), map())
     """)
 
-def save_message(cfg: dict, conversation_id: str, role: str, content: str, tokens_in: int = 0, tokens_out: int = 0, status: str = "ok"):
+def save_message(cfg: dict, conversation_id: str, role: str, content: str,
+                 tokens_in: int = 0, tokens_out: int = 0, status: str = "ok"):
     spark = get_spark()
     msg_id = str(uuid.uuid4())
-    spark.sql(f"""
+    # IMPORTANT: precompute the escaped content so the f-string expression
+    # does not include a backslash (which triggered your SyntaxError).
+    escaped = content.replace("$", "\\$")
+    query = f"""
       INSERT INTO {tbl(cfg, 'messages')} VALUES (
-        '{msg_id}', '{conversation_id}', '{role}', $${content.replace('$','\$')}$$, ARRAY(), {tokens_in}, {tokens_out}, current_timestamp(), '{status}')
-    """)
+        '{msg_id}', '{conversation_id}', '{role}', $${escaped}$$, ARRAY(), {tokens_in}, {tokens_out}, current_timestamp(), '{status}')
+    """
+    spark.sql(query)
+
+
+# --------- Models ---------
+def allowed_models(cfg: dict, model_catalog: dict):
+    allow_ids = cfg["app"].get("allowed_model_ids", [])
+    models = model_catalog.get("models", [])
+    if allow_ids:
+        return [m for m in models if m.get("id") in allow_ids]
+    # else fallback to allowed: true
+    return [m for m in models if m.get("allowed", False)]
 
 # --------- UI ---------
 def sidebar(cfg: dict, model_catalog: dict, user_id: str):
     with st.sidebar:
         st.markdown("### 💬 Chats")
-        # Conversations list
         chats = list_conversations(cfg, user_id)
-        new_chat = st.button("➕ New chat")
+        if st.button("➕ New chat") or st.session_state.get("current_conv") is None:
+            conv_id = str(uuid.uuid4())
+            st.session_state["current_conv"] = conv_id
+            # Set default model id as first allowed
+            am = allowed_models(cfg, model_catalog)
+            default_model_id = am[0]["id"] if am else ""
+            st.session_state["selected_model_id"] = st.session_state.get("selected_model_id") or default_model_id
+            save_conversation(cfg, conv_id, user_id, st.session_state.get("tenant_id","default"), "New Chat", st.session_state["selected_model_id"])
+
         selected_conv = None
         if not chats.empty:
             titles = [f"{r['title']} ({r['created_at']:%b %d})" for _, r in chats.iterrows()]
-            idx = st.selectbox("Your conversations", options=list(range(len(titles))), format_func=lambda i: titles[i] if i is not None else "", index=0 if len(titles)>0 else None)
+            idx = st.selectbox("Your conversations", options=list(range(len(titles))), format_func=lambda i: titles[i], index=0 if len(titles)>0 else None)
             if idx is not None:
                 selected_conv = chats.iloc[idx]["conversation_id"]
-        st.session_state["current_conv"] = selected_conv if selected_conv else st.session_state.get("current_conv")
-        if new_chat or st.session_state.get("current_conv") is None:
-            conv_id = str(uuid.uuid4())
-            st.session_state["current_conv"] = conv_id
-            save_conversation(cfg, conv_id, user_id, st.session_state["tenant_id"], "New Chat", st.session_state.get("selected_model") or cfg["app"]["default_llm_route"])
+        st.session_state["current_conv"] = selected_conv or st.session_state["current_conv"]
 
         st.markdown("---")
-        st.markdown("### ⚙️ Model & Tools")
-        models = model_catalog.get("models", [])
-        model_display_to_route = {m["display_name"]: m["route"] for m in models}
-        display_names = list(model_display_to_route.keys())
-        current = st.session_state.get("selected_model") or cfg["app"]["default_llm_route"]
-        display_default = [k for k, v in model_display_to_route.items() if v == current]
-        index = display_names.index(display_default[0]) if display_default else 0
-        picked = st.selectbox("Model", display_names, index=index)
-        st.session_state["selected_model"] = model_display_to_route[picked]
-        st.session_state["use_rag"] = st.toggle("Use my uploads (RAG)", value=True)
-        st.session_state["temperature"] = st.slider("Temperature", 0.0, 1.0, 0.2, 0.05)
-        st.session_state["max_tokens"] = st.slider("Max output tokens", 128, 4096, 768, 64)
+        st.markdown("### ⚙️ Model")
+        am = allowed_models(cfg, model_catalog)
+        if not am:
+            st.error("No allowed models configured. Edit config/app_config.yaml → app.allowed_model_ids or set allowed:true in inference/model_catalog.yaml.")
+        else:
+            name_to_id = {m["display_name"]: m["id"] for m in am}
+            names = list(name_to_id.keys())
+            # Default selection
+            cur_id = st.session_state.get("selected_model_id") or am[0]["id"]
+            cur_name = [n for n, mid in name_to_id.items() if mid == cur_id][0]
+            picked = st.selectbox("Model", names, index=names.index(cur_name))
+            st.session_state["selected_model_id"] = name_to_id[picked]
+            st.session_state["temperature"] = st.slider("Temperature", 0.0, 1.0, 0.2, 0.05)
+            st.session_state["max_tokens"] = st.slider("Max output tokens", 128, 4096, 768, 64)
 
         st.markdown("---")
         st.markdown("### ⬆️ Upload data")
         up = st.file_uploader("CSV or Excel", type=["csv","tsv","xlsx","xls"], accept_multiple_files=False)
         if up is not None:
-            info = process_upload(up.name, up.getvalue(), cfg["app"]["catalog"], cfg["app"]["schema"], cfg["app"]["volume"], st.session_state["tenant_id"])
+            info = process_upload(up.name, up.getvalue(), cfg["app"]["catalog"], cfg["app"]["schema"], cfg["app"]["volume"], st.session_state.get("tenant_id","default"))
             st.success(f"Uploaded {up.name} → {info['rows']} row(s).")
 
-def chat_area(cfg: dict, theme: dict):
+def chat_area(cfg: dict, model_catalog: dict, theme: dict):
     st.markdown(f"#### {cfg['app']['title']}")
-    st.caption("Chat with Databricks‑hosted models, with optional RAG on your uploads.")
+    st.caption("Chat with Databricks pay‑per‑token models. (RAG hooks available)")
 
-    # Messages display
-    conv = st.session_state["current_conv"]
+    conv = st.session_state.get("current_conv")
     if conv:
         msgs = load_messages(cfg, conv)
         for m in msgs:
@@ -196,53 +198,46 @@ def chat_area(cfg: dict, theme: dict):
             st.markdown(f'<div class="{css_class}"><div class="chat-title">{m["role"]}</div>{m["content"]}</div>', unsafe_allow_html=True)
 
     prompt = st.chat_input("Type your message")
-    if prompt:
-        # Save user message
+    if prompt and st.session_state.get("selected_model_id"):
         save_message(cfg, conv, "user", prompt)
-        messages = [{"role":"system","content":"You are a helpful assistant."}]
-        # Add prior conversation context
-        hist = load_messages(cfg, conv)
-        for h in hist:
-            messages.append({"role": h["role"], "content": h["content"]})
 
-        # TODO: If RAG enabled, retrieve top chunks and prepend as system/context
-        # For MVP, we skip the actual retrieval to keep the scaffold minimal.
+        # Reconstruct full history
+        history = load_messages(cfg, conv)
+        messages = [{"role": "system", "content": "You are a helpful assistant."}] + history
 
-        # Call LLM via AI Gateway
-        content, usage = call_llm_via_gateway(messages, route=st.session_state["selected_model"], max_tokens=st.session_state["max_tokens"], temperature=st.session_state["temperature"])
+        # Resolve selected model
+        models = {m["id"]: m for m in model_catalog.get("models", [])}
+        model = models[st.session_state["selected_model_id"]]
+        endpoint = model["endpoint"]
+        schema = model.get("schema", "openai-chat")
+
+        # Call Serving endpoint
+        content, usage = call_llm_via_serving(messages, endpoint_name=endpoint, max_tokens=st.session_state["max_tokens"], temperature=st.session_state["temperature"], schema=schema)
         tokens_in = usage.get("prompt_tokens", 0)
         tokens_out = usage.get("completion_tokens", 0)
         save_message(cfg, conv, "assistant", content, tokens_in, tokens_out)
         st.rerun()
 
-# ---------- Main ----------
 def main():
     cfg, model_catalog = get_cfg()
     ensure_session_state()
-
     # Resolve user id
     if not st.session_state.get("user_id"):
-        # Attempt to read from Spark
         uid = get_user_id()
         if uid:
             st.session_state["user_id"] = uid
-
     if not st.session_state.get("user_id"):
         st.info("We couldn't determine your identity automatically. Please enter an identifier (e.g., your email).")
         manual = st.text_input("Your ID", value="", key="manual_id")
         if st.button("Set identity") and manual:
             st.session_state["user_id"] = manual
-
     if not st.session_state.get("user_id"):
         st.stop()
 
-    # Load/apply theme
-    theme = load_theme(cfg, st.session_state["tenant_id"])
+    theme = load_theme(cfg, st.session_state.get("tenant_id","default"))
     apply_theme(theme)
-
-    # Layout
     sidebar(cfg, model_catalog, st.session_state["user_id"])
-    chat_area(cfg, theme)
+    chat_area(cfg, model_catalog, theme)
 
 if __name__ == "__main__":
     main()
