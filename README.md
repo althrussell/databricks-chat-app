@@ -1,31 +1,23 @@
-# Databricks Chat App (Streamlit) — Serving Endpoints + SQL Warehouse (no pyspark)
+# Databricks Chat App — App-Local Modules (Serving + SQL Warehouse, no pyspark)
 
-This build removes all pyspark usage and talks to:
-- **Databricks Model Serving** for LLM calls (pay‑per‑token)
-- **Databricks SQL Warehouse** (Statement Execution API via `databricks-sdk`) for Lakehouse CRUD
+This build keeps **all runtime Python modules and config under the entrypoint directory** so that
+Databricks Apps packages everything needed. No `PYTHONPATH` tweaks required.
 
-## What you need
-- A **SQL Warehouse ID** with access to your catalog/schema/volume.
-- Env vars set on the App:
-  - `APP_DATABRICKS_HOST` = `https://<workspace>` (e.g., `https://e2-demo-west.cloud.databricks.com`)
-  - `APP_DATABRICKS_TOKEN` = token for the App runtime identity
-  - `APP_SQL_WAREHOUSE_ID` = your SQL Warehouse ID (e.g., `1234-567890-abcd123`)
-  - `APP_CATALOG`, `APP_SCHEMA`, `APP_VOLUME`
+**Entry point:** `apps/streamlit_app/app.py`
 
-## How tables are written/read
-- All DDL/DML uses the **Statement Execution API** (no Spark cluster needed).
-- `current_user()` is also resolved via a small SQL query to the warehouse.
+**What changed vs prior build**
+- Moved `inference/`, `pipelines/`, and `config/app_config.yaml` **under** `apps/streamlit_app/`.
+- Added `__init__.py` so imports like `from inference.rag import ...` work relative to the entrypoint.
+- Still uses **Databricks Model Serving** for LLM and **SQL Warehouse** (Statement Execution API) for tables.
 
-## Upload ingestion
-- CSV/TSV files are stored in a **per-user UC Volume** and registered as **external CSV tables** via
-  ```
-  CREATE TABLE <catalog>.<schema>.<auto_name>
-  USING CSV OPTIONS (header true)
-  LOCATION '/Volumes/<catalog>/<schema>/<volume>/<user>/uploads/<file>.csv'
-  ```
-- Excel files are split to per‑sheet **CSV** under `extracted/` and registered the same way.
+**Environment variables required**
+- `APP_DATABRICKS_HOST` = `https://<workspace>`
+- `APP_DATABRICKS_TOKEN` = token for the App identity
+- `APP_CATALOG`, `APP_SCHEMA`, `APP_VOLUME`
+- **Either** `APP_SQL_WAREHOUSE_ID` **or** `APP_SQL_WAREHOUSE_NAME`
 
+**Python packages**
+See `apps/streamlit_app/requirements.txt` (install these in the App UI).
 
-
-### Warehouse by name (optional)
-You can set `APP_SQL_WAREHOUSE_NAME` instead of `APP_SQL_WAREHOUSE_ID`. The app will resolve the ID at runtime.
+**SQL bootstrap**
+Still available under `sql/create_objects.sql` to create catalog/schema/tables/volume once.
