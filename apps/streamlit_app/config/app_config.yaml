@@ -1,6 +1,6 @@
 app:
   title: "Databricks Chat App"
-  catalog: ${env:APP_CATALOG, "app_catalog"}
+  catalog: ${env:APP_CATALOG, "shared"}
   schema: ${env:APP_SCHEMA, "app"}
   volume: ${env:APP_VOLUME, "user_files"}
   allowed_model_ids: ["sonnet-4"]
