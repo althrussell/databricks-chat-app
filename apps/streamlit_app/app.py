@@ -13,25 +13,62 @@ def load_yaml(path: str) -> dict:
 
 def get_cfg():
     here = pathlib.Path(__file__).resolve().parent  # directory containing app.py
-    # Try common locations (app-local first, then parent in case of different packaging)
-    cfg_candidates = [
-        here / "config" / "app_config.yaml",
-        here.parent / "config" / "app_config.yaml",
-    ]
-    cfg_path = next((p for p in cfg_candidates if p.exists()), None)
-    if not cfg_path:
-        raise FileNotFoundError("app_config.yaml not found. Looked at: " + ", ".join([str(p) for p in cfg_candidates]))
+    # Try app-local files first
+    cfg_path = here / "config" / "app_config.yaml"
+    mc_path  = here / "inference" / "model_catalog.yaml"
+    # Also try one level up (in case packaging moved folders)
+    if not cfg_path.exists():
+        alt = here.parent / "config" / "app_config.yaml"
+        if alt.exists():
+            cfg_path = alt
+    if not mc_path.exists():
+        alt = here.parent / "inference" / "model_catalog.yaml"
+        if alt.exists():
+            mc_path = alt
 
-    mc_candidates = [
-        here / "inference" / "model_catalog.yaml",
-        here.parent / "inference" / "model_catalog.yaml",
-    ]
-    mc_path = next((p for p in mc_candidates if p.exists()), None)
-    if not mc_path:
-        raise FileNotFoundError("model_catalog.yaml not found. Looked at: " + ", ".join([str(p) for p in mc_candidates]))
+    # If both files exist, load them
+    if cfg_path.exists() and mc_path.exists():
+        cfg = load_yaml(str(cfg_path))
+        model_catalog = load_yaml(str(mc_path))
+        st.caption(f"Config loaded from files: {cfg_path.name}, {mc_path.name}")
+        return cfg, model_catalog
 
-    cfg = load_yaml(str(cfg_path))
-    model_catalog = load_yaml(str(mc_path))
+    # ---- Fallback: build config from environment variables ----
+    # Minimal viable config so the app can boot even if files aren't packaged.
+    st.warning("Config files not found; using environment-based defaults. Package config under apps/streamlit_app/ if you want to edit them.")
+    catalog = os.environ.get("APP_CATALOG", "app_catalog")
+    schema  = os.environ.get("APP_SCHEMA", "app")
+    volume  = os.environ.get("APP_VOLUME", "user_files")
+    allowed = [m.strip() for m in os.environ.get("APP_ALLOWED_MODEL_IDS", "sonnet-4").split(",") if m.strip()]
+
+    cfg = {
+        "app": {
+            "title": "Databricks Chat App",
+            "catalog": catalog,
+            "schema": schema,
+            "volume": volume,
+            "allowed_model_ids": allowed,
+            "features": {
+                "enable_rag": False,
+                "enable_sql_tool": False,
+                "enable_budgets": True
+            }
+        }
+    }
+
+    # Model catalog: single model fallback (Claude Sonnet 4) unless overridden via env
+    default_model = {
+        "id": os.environ.get("APP_DEFAULT_MODEL_ID", "sonnet-4"),
+        "display_name": os.environ.get("APP_DEFAULT_MODEL_NAME", "Claude Sonnet 4"),
+        "provider": "serving",
+        "endpoint": os.environ.get("APP_DEFAULT_MODEL_ENDPOINT", "databricks-claude-sonnet-4"),
+        "schema": os.environ.get("APP_DEFAULT_MODEL_SCHEMA", "openai-chat"),
+        "allowed": True,
+        "context_window": 200000,
+        "max_output_tokens": 2048
+    }
+    model_catalog = {"models": [default_model]}
+    st.caption(f"Model catalog from env: {default_model['display_name']} → {default_model['endpoint']}")
     return cfg, model_catalog
 def ensure_session_state():
     defaults = {
