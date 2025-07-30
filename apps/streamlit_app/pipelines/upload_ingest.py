@@ -15,9 +15,13 @@ def save_file_to_volume(bytes_data: bytes, dest_path: str):
     return dest_path
 
 def register_document(doc: dict, catalog: str, schema: str):
-    cols = ",".join(doc.keys())
-    vals = ", ".join([f"'{str(v).replace("'","''")}'" for v in doc.values()])
-    sql_exec(f"INSERT INTO {catalog}.{schema}.documents ({cols}) VALUES ({vals})", catalog, schema)
+    def esc(v):
+        return str(v).replace("'", "''")
+    cols = ", ".join(doc.keys())
+    vals = ", ".join(["'{}'".format(esc(v)) for v in doc.values()])
+    stmt = f"INSERT INTO {catalog}.{schema}.documents ({cols}) VALUES ({vals})"
+    sql_exec(stmt, catalog, schema)
+
 
 def create_csv_external_table(catalog: str, schema: str, table_name: str, csv_path: str, header: bool = True):
     hdr = "true" if header else "false"
