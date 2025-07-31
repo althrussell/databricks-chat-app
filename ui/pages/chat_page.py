@@ -51,7 +51,7 @@ class ChatPage(BasePage):
     
     def _handle_chat_input(self):
         """Handle user input from chat interface"""
-        prompt = st.chat_input("Ask me anything about your data...")
+        prompt = st.chat_input("Ask me anything...")
         
         if prompt and prompt.strip():
             self.state_manager.add_message("user", prompt)

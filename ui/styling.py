@@ -1,8 +1,8 @@
-# ui/styling.py - Complete executive-grade CSS styling
+# ui/styling.py - Updated with Apple-grade UX improvements
 import streamlit as st
 
 def apply_executive_styling():
-    """Apply executive-grade CSS styling to the application"""
+    """Apply executive-grade CSS styling with Apple-inspired UX improvements"""
     st.markdown("""
     <style>
     /* Import premium fonts */
@@ -74,26 +74,27 @@ def apply_executive_styling():
         padding: var(--spacing-xl) var(--spacing-lg);
     }
 
-    /* Executive-grade sidebar buttons */
+    /* IMPROVED: Executive-grade sidebar buttons with perfect alignment */
     section[data-testid="stSidebar"] .stButton > button {
-        width: 100%;
-        height: 52px;
+        width: 100% !important;
+        height: 56px !important; /* Increased height for better text fit */
         margin-bottom: var(--spacing-sm);
         border: 1px solid var(--border-light);
         background: var(--background-secondary);
         color: var(--text-primary);
-        padding: var(--spacing-md) var(--spacing-lg);
+        padding: var(--spacing-md) var(--spacing-lg) !important;
         border-radius: var(--border-radius-lg);
-        font-size: 15px;
+        font-size: 16px !important; /* Increased font size */
         font-weight: 500;
-        text-align: left;
+        text-align: center !important; /* Center aligned text */
         transition: var(--transition-fast);
         box-shadow: var(--shadow-sm);
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important; /* Perfect center alignment */
         position: relative;
         overflow: hidden;
+        line-height: 1.2 !important;
     }
 
     section[data-testid="stSidebar"] .stButton > button:hover {
@@ -262,7 +263,44 @@ def apply_executive_styling():
         background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
     }
 
-    /* Chat messages */
+    /* IMPROVED: Professional chat message avatars */
+    .stChatMessage[data-testid="user-message"] [data-testid="chatAvatarIcon-user"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border-radius: 8px !important;
+        width: 32px !important;
+        height: 32px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+
+    .stChatMessage[data-testid="user-message"] [data-testid="chatAvatarIcon-user"]::after {
+        content: "You" !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    .stChatMessage[data-testid="assistant-message"] [data-testid="chatAvatarIcon-assistant"] {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%) !important;
+        color: white !important;
+        border-radius: 8px !important;
+        width: 32px !important;
+        height: 32px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+
+    .stChatMessage[data-testid="assistant-message"] [data-testid="chatAvatarIcon-assistant"]::after {
+        content: "AI" !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* IMPROVED: Chat messages with cleaner styling */
     .stChatMessage {
         background: var(--background-elevated);
         border: 1px solid var(--border-light);
@@ -289,29 +327,68 @@ def apply_executive_styling():
         border-left: 4px solid var(--border-medium);
     }
 
-    /* Chat input */
+    /* IMPROVED: Claude.ai-style chat input */
     [data-testid="stChatInput"] {
-        background: var(--background-secondary);
-        border-top: 1px solid var(--border-light);
-        padding: var(--spacing-lg) 0;
-        box-shadow: var(--shadow-lg);
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: var(--spacing-xl) 0 var(--spacing-lg) 0 !important;
+        position: relative !important;
+    }
+
+    [data-testid="stChatInput"] > div {
+        background: var(--background-elevated) !important;
+        border: 2px solid var(--border-light) !important;
+        border-radius: var(--border-radius-xl) !important;
+        box-shadow: var(--shadow-lg) !important;
+        transition: var(--transition-fast) !important;
+        position: relative !important;
+        overflow: visible !important;
+    }
+
+    [data-testid="stChatInput"] > div:focus-within {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1), var(--shadow-lg) !important;
     }
 
     [data-testid="stChatInput"] input {
-        background: var(--background-elevated);
-        border: 1px solid var(--border-light);
-        border-radius: var(--border-radius-xl);
-        padding: var(--spacing-md) var(--spacing-lg);
-        font-size: 15px;
-        color: var(--text-primary);
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition-fast);
+        background: transparent !important;
+        border: none !important;
+        padding: var(--spacing-lg) var(--spacing-xl) !important;
+        font-size: 16px !important;
+        color: var(--text-primary) !important;
+        min-height: 24px !important;
+        line-height: 1.5 !important;
+        resize: none !important;
     }
 
     [data-testid="stChatInput"] input:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        outline: none;
+        outline: none !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    [data-testid="stChatInput"] input::placeholder {
+        color: var(--text-muted) !important;
+        font-weight: 400 !important;
+    }
+
+    /* Model indicator for chat input */
+    .chat-model-indicator {
+        position: absolute;
+        bottom: -28px;
+        left: var(--spacing-md);
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+    }
+
+    .chat-model-indicator::before {
+        content: "⚡";
+        font-size: 10px;
     }
 
     /* Form elements */
@@ -389,6 +466,76 @@ def apply_executive_styling():
         font-weight: 700;
         color: var(--text-primary);
         margin: var(--spacing-xs) 0;
+    }
+
+    /* IMPROVED: Consistent button heights in history */
+    .history-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: stretch;
+    }
+
+    .history-actions .stButton > button,
+    .history-actions .stDownloadButton > button {
+        height: 40px !important;
+        padding: 0 var(--spacing-md) !important;
+        font-size: 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+        min-width: 80px !important;
+    }
+
+    /* Compact history item styling */
+    .history-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--spacing-md);
+        border: 1px solid var(--border-light);
+        border-radius: var(--border-radius-md);
+        margin-bottom: var(--spacing-sm);
+        background: var(--background-elevated);
+        transition: var(--transition-fast);
+        cursor: pointer;
+    }
+
+    .history-item:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--border-medium);
+    }
+
+    .history-item-main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-lg);
+    }
+
+    .history-item-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 15px;
+    }
+
+    .history-item-meta {
+        display: flex;
+        gap: var(--spacing-md);
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .history-item-actions {
+        display: flex;
+        gap: var(--spacing-xs);
+    }
+
+    .history-item-actions button {
+        padding: var(--spacing-xs) var(--spacing-sm) !important;
+        font-size: 12px !important;
+        height: 32px !important;
+        min-width: auto !important;
     }
 
     /* Tables */
@@ -550,6 +697,17 @@ def apply_executive_styling():
         section[data-testid="stSidebar"] .stButton > button {
             height: 48px;
             font-size: 14px;
+        }
+
+        .history-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: var(--spacing-sm);
+        }
+
+        .history-item-actions {
+            width: 100%;
+            justify-content: flex-end;
         }
     }
 
