@@ -24,7 +24,7 @@ class HistoryPage(BasePage):
     
     def _render_logging_disabled_message(self):
         """Render message when logging is disabled"""
-        st.info("📊 Data logging is disabled. Enable SQL logging to view conversation history.")
+        st.info(" Data logging is disabled. Enable SQL logging to view conversation history.")
         
         with st.expander("How to Enable Conversation History"):
             st.markdown("""
@@ -71,13 +71,13 @@ class HistoryPage(BasePage):
                 self._render_conversation_card(i, conv)
                 
         except Exception as e:
-            st.error(f"❌ Unable to load conversation history: {e}")
+            st.error(f" Unable to load conversation history: {e}")
     
     def _render_no_conversations_message(self):
         """Render message when no conversations are found"""
-        st.info("📝 No conversations found.")
+        st.info(" No conversations found.")
         
-        if st.button("🚀 Start New Conversation", use_container_width=True):
+        if st.button("Start New Conversation", use_container_width=True):
             self.state_manager.clear_conversation()
             self.state_manager.navigate_to("chat")
     
@@ -89,7 +89,7 @@ class HistoryPage(BasePage):
             with col1:
                 title = conversation.get('title', 'Untitled Conversation')
                 st.markdown(f"**{title}**")
-                st.caption(f"📅 Created: {conversation.get('created_at', 'Unknown')}")
+                st.caption(f"Created: {conversation.get('created_at', 'Unknown')}")
             
             with col2:
                 st.metric("Model", conversation.get('model', 'Unknown')[:25])
@@ -112,17 +112,17 @@ class HistoryPage(BasePage):
         title = conversation.get("title", "Conversation")
         
         with action_col1:
-            if st.button("📂 Load", key=f"load_{index}", use_container_width=True):
+            if st.button("Load", key=f"load_{index}", use_container_width=True):
                 self._load_conversation(conv_id, title)
         
         with action_col2:
-            if st.button("🗑️ Delete", key=f"del_{index}", use_container_width=True):
+            if st.button("Delete", key=f"del_{index}", use_container_width=True):
                 self._delete_conversation(conv_id, title)
         
         with action_col3:
             export_data = export_conversation_json(conv_id)
             st.download_button(
-                "⬇️ Export",
+                "Export",
                 data=export_data,
                 file_name=f"conversation_{conv_id}.json",
                 mime="application/json",
@@ -135,9 +135,9 @@ class HistoryPage(BasePage):
         try:
             messages = self.conversation_service.load_conversation_messages(conv_id)
             self.state_manager.load_conversation(conv_id, title, messages)
-            st.success(f"✅ Loaded conversation: **{title}**")
+            st.success(f"Loaded conversation: **{title}**")
         except Exception as e:
-            st.error(f"❌ Failed to load conversation: {e}")
+            st.error(f"Failed to load conversation: {e}")
     
     def _delete_conversation(self, conv_id: str, title: str):
         """Delete a conversation with confirmation"""
@@ -148,13 +148,13 @@ class HistoryPage(BasePage):
         
         if not st.session_state[confirm_key]:
             st.session_state[confirm_key] = True
-            st.warning(f"⚠️ Click delete again to confirm removal of: **{title}**")
+            st.warning(f"Click delete again to confirm removal of: **{title}**")
         else:
             try:
                 self.conversation_service.delete_conversation(conv_id)
-                st.success(f"🗑️ Deleted conversation: **{title}**")
+                st.success(f"Deleted conversation: **{title}**")
                 del st.session_state[confirm_key]
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Failed to delete conversation: {e}")
+                st.error(f"Failed to delete conversation: {e}")
                 del st.session_state[confirm_key]

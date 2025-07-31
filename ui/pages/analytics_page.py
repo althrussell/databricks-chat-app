@@ -22,7 +22,7 @@ class AnalyticsPage(BasePage):
             self._render_model_breakdown(analytics_data)
             
         except Exception as e:
-            st.error(f"❌ Analytics service temporarily unavailable: {e}")
+            st.error(f" Analytics service temporarily unavailable: {e}")
     
     def _is_logging_enabled(self) -> bool:
         """Check if SQL logging is enabled"""
@@ -30,7 +30,7 @@ class AnalyticsPage(BasePage):
     
     def _render_logging_disabled_message(self):
         """Render message when logging is disabled"""
-        st.info("📊 Data logging is disabled. Enable SQL logging to view usage analytics.")
+        st.info(" Data logging is disabled. Enable SQL logging to view usage analytics.")
         
         with st.expander("Analytics Benefits"):
             st.markdown("""
@@ -43,7 +43,7 @@ class AnalyticsPage(BasePage):
     
     def _render_metrics_dashboard(self, analytics_data: Dict[str, Any]):
         """Render the main metrics dashboard"""
-        st.subheader("📊 Platform Utilization Overview")
+        st.subheader("Platform Utilization Overview")
         
         totals = analytics_data.get("totals", {})
         
@@ -72,9 +72,9 @@ class AnalyticsPage(BasePage):
         by_day = analytics_data.get("by_day")
         
         if by_day is not None and not by_day.empty:
-            st.subheader("📈 Usage Trends Over Time")
+            st.subheader("Usage Trends Over Time")
             
-            tab1, tab2 = st.tabs(["💰 Cost Analysis", "🔤 Token Utilization"])
+            tab1, tab2 = st.tabs(["Cost Analysis", "Token Utilization"])
             
             with tab1:
                 st.bar_chart(
@@ -92,14 +92,14 @@ class AnalyticsPage(BasePage):
                 )
                 st.caption("Token consumption trends over time")
         else:
-            st.info("📊 Insufficient data for trend analysis. Continue using the platform to generate insights.")
+            st.info(" Insufficient data for trend analysis. Continue using the platform to generate insights.")
     
     def _render_model_breakdown(self, analytics_data: Dict[str, Any]):
         """Render model performance breakdown"""
         by_model = analytics_data.get("by_model")
         
         if by_model is not None and not by_model.empty:
-            st.subheader("🤖 Model Performance Comparison")
+            st.subheader("Model Performance Comparison")
             
             st.dataframe(
                 by_model.rename(columns={
@@ -113,4 +113,4 @@ class AnalyticsPage(BasePage):
             )
             st.caption("Breakdown of usage and costs by model endpoint")
         else:
-            st.info("🤖 No model usage data available yet.")
+            st.info(" No model usage data available yet.")
