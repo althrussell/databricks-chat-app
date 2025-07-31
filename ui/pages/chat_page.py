@@ -91,6 +91,18 @@ class ChatPage(BasePage):
             for message in messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
+        # st.markdown(
+        #     """
+        #     <div style="text-align: center; margin-top: 3rem; opacity: 0.6;">
+        #         <img src="https://www.databricks.com/sites/default/files/2023-08/databricks-default.png"
+        #             alt="Databricks Logo"
+        #             style="height: 30px; margin-bottom: 0.5rem;" />
+        #         <div style="font-size: 0.9rem;">Powered by Databricks</div>
+        #     </div>
+        #     """,
+        #     unsafe_allow_html=True
+        # )
+
 
     def _handle_chat_input(self):
         prompt = st.chat_input("Ask me anything...")

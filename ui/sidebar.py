@@ -65,6 +65,15 @@ class SidebarRenderer:
         st.markdown("---")
     
     def _render_status(self):
+        st.markdown("""
+            <div style="text-align: center; margin-top: 2rem; margin-bottom: 1.5rem;">
+                <img src="https://www.databricks.com/sites/default/files/2023-08/databricks-default.png"
+                    alt="Databricks Logo"
+                    style="height: 30px; margin-bottom: 0.4rem;" />
+                <div style="font-size: 0.85rem; color: gray;">Powered by Databricks</div>
+            </div>
+            """, unsafe_allow_html=True)
+
         """Render system status information"""
         st.markdown("#### System Status")
         
