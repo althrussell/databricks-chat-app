@@ -5,3 +5,4 @@ databricks-sql-connector>=3.0.0
 databricks-sdk>=0.33.0
 pandas>=2.0.0
 PyMuPDF>=1.22.5
+transformers>=4.40.0

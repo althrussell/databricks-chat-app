@@ -4,6 +4,8 @@ import os
 import db
 from .base_page import BasePage
 from services.file_parser_service import parse_file  # ⬅️ New import
+from services.token_truncation import truncate_to_model_context
+
 
 class ChatPage(BasePage):
     """Chat page renderer - Main conversation interface"""
@@ -32,19 +34,44 @@ class ChatPage(BasePage):
             4. Return to Chat to start conversations
             """)
 
+    # def _render_file_uploader(self):
+    #     file = st.file_uploader("Upload a document",    type=["pdf", "csv", "xlsx", "txt", "py", "md"])
+
+    #     if file:
+    #         file_key = f"uploaded_{file.name}"
+    #         if not st.session_state.get(file_key):
+    #             with st.spinner("Parsing document..."):
+    #                 extracted_text = parse_file(file)
+
+    #                 if extracted_text:
+    #                     st.session_state["file_context"] = extracted_text  # ⬅️ Store only, don't inject
+    #                     st.session_state[file_key] = True
+    #                     st.success("File uploaded successfully.")
+    #                     st.rerun()
+    #         elif "file_context" in st.session_state:
+    #             st.success("File uploaded.")
+    #             with st.expander("Preview file content"):
+    #                 st.text_area("Document Content", st.session_state["file_context"], height=200)
     def _render_file_uploader(self):
-        file = st.file_uploader("Upload a document",    type=["pdf", "csv", "xlsx", "txt", "py", "md"])
+        file = st.file_uploader("Upload a document", type=["pdf", "csv", "xlsx", "txt", "py", "md"])
 
         if file:
             file_key = f"uploaded_{file.name}"
             if not st.session_state.get(file_key):
                 with st.spinner("Parsing document..."):
-                    extracted_text = parse_file(file)
+                    model_key = self.state_manager.get_model_key().lower()
+                    extracted_text, was_truncated = parse_file(file, model_key)
+
                     if extracted_text:
-                        st.session_state["file_context"] = extracted_text  # ⬅️ Store only, don't inject
+                        st.session_state["file_context"] = extracted_text
                         st.session_state[file_key] = True
                         st.success("File uploaded successfully.")
+
+                        if was_truncated:
+                            st.warning("⚠️ The file content was truncated to fit the model’s input limit.")
+
                         st.rerun()
+
             elif "file_context" in st.session_state:
                 st.success("File uploaded.")
                 with st.expander("Preview file content"):

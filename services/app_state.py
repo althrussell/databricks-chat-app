@@ -111,3 +111,18 @@ class AppStateManager:
     def is_new_conversation(self) -> bool:
         """Check if this is a new conversation"""
         return self.state.chat_title == "New Conversation" and len(self.state.messages) >= 2
+    
+    def get_model_key(self) -> str:
+        """Get simplified model identifier for token context handling"""
+        endpoint = self.get_selected_endpoint().lower()
+
+        if "claude" in endpoint:
+            return "claude"
+        elif "gemma" in endpoint:
+            return "gemma"
+        elif "llama" in endpoint:
+            return "llama"
+        elif "gpt" in endpoint:
+            return "gpt"
+        else:
+            return "default"
