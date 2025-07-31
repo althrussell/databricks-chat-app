@@ -1,0 +1,31 @@
+command: ['streamlit', 'run', 'app.py']
+env:
+  # --- Models ---
+  - name: SERVING_ENDPOINT
+    value: "databricks-claude-sonnet-4"   # preselected in the dropdown
+  - name: SERVING_ENDPOINTS_CSV
+    value: "databricks-claude-sonnet-4|Claude Sonnet 4,databricks-llama-4-maverick|Llama 4 Maverick,databricks-gemma-3-12b|Gemma 3 12B"
+
+  # --- Warehouse / Logging ---
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: "75fd8278393d07eb"            # set to your SQL Warehouse ID
+  - name: CATALOG
+    value: "shared"
+  - name: SCHEMA
+    value: "app"
+  - name: ENABLE_LOGGING
+    value: "1"                           # set to 0 to disable table writes
+
+  # --- Run SQL as end user when a forwarded token is available (optional) ---
+  - name: RUN_SQL_AS_USER
+    value: "0"                           # set to 1 to try OBO; falls back to App identity
+
+  # --- Sliding message window sent to the model ---
+  - name: MAX_TURNS
+    value: "12"
+
+  # --- Optional cost logging (USD per 1K tokens) ---
+  - name: PRICE_PROMPT_PER_1K
+    value: "0"
+  - name: PRICE_COMPLETION_PER_1K
+    value: "0"
