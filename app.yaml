@@ -1,31 +1,100 @@
-command: ['streamlit', 'run', 'app.py']
+# app.yaml - Enhanced Databricks App Configuration
+command: ['streamlit', 'run', 'app.py', '--server.headless', 'true', '--server.enableCORS', 'false']
+
 env:
-  # --- Models ---
+  # =================================
+  # MODEL CONFIGURATION
+  # =================================
+  
+  # Primary serving endpoint (pre-selected in dropdown)
   - name: SERVING_ENDPOINT
-    value: "databricks-claude-sonnet-4"   # preselected in the dropdown
+    value: "databricks-claude-sonnet-4"
+  
+  # Available endpoints (comma-separated, use pipe for display names)
+  # Format: "endpoint_id|Display Name,endpoint_id2|Display Name 2"
   - name: SERVING_ENDPOINTS_CSV
     value: "databricks-claude-sonnet-4|Claude Sonnet 4,databricks-llama-4-maverick|Llama 4 Maverick,databricks-gemma-3-12b|Gemma 3 12B"
 
-  # --- Warehouse / Logging ---
+  # =================================
+  # DATABASE & LOGGING CONFIGURATION
+  # =================================
+  
+  # SQL Warehouse ID for conversation logging and analytics
+  # Get this from your Databricks workspace -> SQL Warehouses
   - name: DATABRICKS_WAREHOUSE_ID
-    value: "75fd8278393d07eb"            # set to your SQL Warehouse ID
+    value: "75fd8278393d07eb"
+  
+  # Database catalog and schema for storing conversations
   - name: CATALOG
     value: "shared"
   - name: SCHEMA
     value: "app"
+  
+  # Enable/disable conversation logging (1=enabled, 0=disabled)
   - name: ENABLE_LOGGING
-    value: "1"                           # set to 0 to disable table writes
+    value: "1"
 
-  # --- Run SQL as end user when a forwarded token is available (optional) ---
+  # =================================
+  # AUTHENTICATION CONFIGURATION
+  # =================================
+  
+  # Run SQL queries as the end user when forwarded token is available
+  # 1=use user credentials when available, 0=always use app credentials
   - name: RUN_SQL_AS_USER
-    value: "0"                           # set to 1 to try OBO; falls back to App identity
+    value: "0"
+  
+  # These are typically set by your proxy/gateway - uncomment if needed
+  # - name: DATABRICKS_FORWARD_EMAIL
+  #   value: "user@company.com"
+  # - name: DATABRICKS_FORWARD_ACCESS_TOKEN
+  #   value: "your-token-here"
 
-  # --- Sliding message window sent to the model ---
+  # =================================
+  # CHAT CONFIGURATION
+  # =================================
+  
+  # Maximum number of conversation turns to send to the model
+  # Higher values provide more context but use more tokens
   - name: MAX_TURNS
     value: "12"
-
-  # --- Optional cost logging (USD per 1K tokens) ---
+  
+  # =================================
+  # COST TRACKING (OPTIONAL)
+  # =================================
+  
+  # Cost per 1K tokens for prompt/input tokens (USD)
   - name: PRICE_PROMPT_PER_1K
-    value: "0"
+    value: "0.003"
+  
+  # Cost per 1K tokens for completion/output tokens (USD)
   - name: PRICE_COMPLETION_PER_1K
+    value: "0.015"
+  
+  # =================================
+  # APPLICATION SETTINGS
+  # =================================
+  
+  # Application logging level (DEBUG, INFO, WARNING, ERROR)
+  - name: LOG_LEVEL
+    value: "INFO"
+  
+  # Enable debug mode for troubleshooting (1=enabled, 0=disabled)
+  - name: DEBUG_MODE
     value: "0"
+
+# Optional: Resource configuration
+# resources:
+#   cpu: "1"
+#   memory: "2Gi"
+
+# Optional: Custom domain and networking
+# networking:
+#   ingress:
+#     enabled: true
+#     # Custom domain configuration would go here
+
+# Optional: Health check configuration
+# health_check:
+#   path: "/_stcore/health"
+#   interval_seconds: 30
+#   timeout_seconds: 10
