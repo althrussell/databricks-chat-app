@@ -5,10 +5,11 @@ import pandas as pd
 def parse_file(file) -> str:
     """Detect file type and route to correct parser."""
     content_type = file.type
+    file_name = file.name.lower()
 
     if content_type == "application/pdf":
         return _parse_pdf(file)
-    elif content_type == "text/plain":
+    elif content_type == "text/plain" or file_name.endswith((".txt", ".py", ".md")):
         return _parse_txt(file)
     elif content_type == "text/csv":
         return _parse_csv(file)
@@ -18,6 +19,7 @@ def parse_file(file) -> str:
     ):
         return _parse_xlsx(file)
     return ""
+
 
 def _parse_pdf(file) -> str:
     doc = fitz.open(stream=file.read(), filetype="pdf")

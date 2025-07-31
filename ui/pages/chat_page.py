@@ -33,22 +33,23 @@ class ChatPage(BasePage):
             """)
 
     def _render_file_uploader(self):
-        file = st.file_uploader("Upload a document", type=["pdf", "csv", "xlsx", "txt"])
+        file = st.file_uploader("Upload a document",    type=["pdf", "csv", "xlsx", "txt", "py", "md"])
+
         if file:
             file_key = f"uploaded_{file.name}"
-
-            if not st.session_state.get(file_key):  # Only parse once
+            if not st.session_state.get(file_key):
                 with st.spinner("Parsing document..."):
                     extracted_text = parse_file(file)
                     if extracted_text:
+                        st.session_state["file_context"] = extracted_text  # ⬅️ Store only, don't inject
+                        st.session_state[file_key] = True
                         st.success("File uploaded successfully.")
-                        with st.expander("Preview file content"):
-                            st.text_area("Document Content", extracted_text, height=200)
-                        self.state_manager.add_message("user", f"Context from uploaded file:\n{extracted_text}")
-                        st.session_state[file_key] = True  # Mark as processed
                         st.rerun()
-            else:
-                st.success("File already uploaded.")
+            elif "file_context" in st.session_state:
+                st.success("File uploaded.")
+                with st.expander("Preview file content"):
+                    st.text_area("Document Content", st.session_state["file_context"], height=200)
+
 
     def _render_chat_history(self):
         messages = self.state_manager.get_messages()
@@ -67,8 +68,14 @@ class ChatPage(BasePage):
     def _handle_chat_input(self):
         prompt = st.chat_input("Ask me anything...")
         if prompt and prompt.strip():
-            self.state_manager.add_message("user", prompt)
+            if "file_context" in st.session_state:
+                full_prompt = f"{st.session_state['file_context']}\n\nUser: {prompt}"
+            else:
+                full_prompt = prompt
+
+            self.state_manager.add_message("user", full_prompt)
             st.rerun()
+
 
     def _handle_assistant_response(self):
         with st.chat_message("assistant"):

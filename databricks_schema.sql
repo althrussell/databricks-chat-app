@@ -1,0 +1,1 @@
+-- SQL script for Databricks schema setup will go here.
