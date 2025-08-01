@@ -5,29 +5,38 @@ from typing import Optional, Dict, Any
 
 def setup_request_context():
     """
-    Setup request context for authentication.
-    This handles the forwarded headers from the proxy/gateway.
+    Safely extract forwarded headers from the environment and store them in session state.
+    This prevents overwriting valid values and ensures the earliest valid source is used.
     """
-    # Check if we're running in a Databricks environment with forwarded headers
-    # These are typically set by the Databricks proxy/gateway
-    forwarded_headers = [
-        "HTTP_X_FORWARDED_EMAIL",
-        "HTTP_X_FORWARDED_ACCESS_TOKEN", 
-        "HTTP_X_FORWARDED_USER",
-        "X_FORWARDED_EMAIL",
-        "X_FORWARDED_ACCESS_TOKEN",
-        "X_FORWARDED_USER"
-    ]
-    
-    # Store any found headers in session state for later use
     if "auth_headers" not in st.session_state:
         st.session_state.auth_headers = {}
-        
-        for header in forwarded_headers:
-            value = os.environ.get(header)
-            if value:
-                clean_key = header.replace("HTTP_", "").replace("X_FORWARDED_", "").lower()
-                st.session_state.auth_headers[clean_key] = value
+
+    # Define canonical keys and all header variants
+    header_map = {
+        "email": [
+            "X_FORWARDED_EMAIL", "HTTP_X_FORWARDED_EMAIL",
+            "DATABRICKS_FORWARD_EMAIL", "USER_EMAIL", "DB_USER_EMAIL"
+        ],
+        "access_token": [
+            "X_FORWARDED_ACCESS_TOKEN", "HTTP_X_FORWARDED_ACCESS_TOKEN",
+            "DATABRICKS_FORWARD_ACCESS_TOKEN", "ACCESS_TOKEN"
+        ],
+        "user": [
+            "X_FORWARDED_USER", "HTTP_X_FORWARDED_USER",
+            "DATABRICKS_FORWARD_USER", "FORWARDED_USER", "USER_ID", "USERNAME"
+        ]
+    }
+
+    for canonical_key, header_variants in header_map.items():
+        for var in header_variants:
+            val = os.environ.get(var)
+            if val and val.strip():
+                # Save the first found valid value only
+                if canonical_key not in st.session_state.auth_headers:
+                    st.session_state.auth_headers[canonical_key] = val.strip()
+                break  # stop checking once we have a value
+
+
 
 def get_forwarded_email() -> Optional[str]:
     """

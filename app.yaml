@@ -41,7 +41,7 @@ env:
   # Run SQL queries as the end user when forwarded token is available
   # 1=use user credentials when available, 0=always use app credentials
   - name: RUN_SQL_AS_USER
-    value: "0"
+    value: "1"
   
   # These are typically set by your proxy/gateway - uncomment if needed
   # - name: DATABRICKS_FORWARD_EMAIL
@@ -81,6 +81,10 @@ env:
   # Enable debug mode for troubleshooting (1=enabled, 0=disabled)
   - name: DEBUG_MODE
     value: "0"
+
+# Auth configuration - at root level, not indented
+auth:
+  mode: "USER"
 
 # Optional: Resource configuration
 # resources:

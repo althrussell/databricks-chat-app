@@ -5,12 +5,20 @@ import db
 from .base_page import BasePage
 from services.file_parser_service import parse_file  # ⬅️ New import
 from services.token_truncation import truncate_to_model_context
+from auth_utils import debug_auth_info
 
 
 class ChatPage(BasePage):
     """Chat page renderer - Main conversation interface"""
     
     def render(self):
+
+        st.markdown("""
+        <div style="text-align: center; padding: 1.5rem 0;">
+            <h3>Welcome to Databricks Intelligence</h3>
+            <p>Start a conversation or upload a document to begin.</p>
+        </div>
+    """, unsafe_allow_html=True)
         endpoint = self.state_manager.get_selected_endpoint()
         if not endpoint:
             self._render_endpoint_not_configured()
@@ -22,6 +30,9 @@ class ChatPage(BasePage):
 
         if self.state_manager.should_generate_response():
             self._handle_assistant_response()
+        
+        with st.expander("Debug Auth Info"):
+            st.json(debug_auth_info())
 
     def _render_endpoint_not_configured(self):
         st.error("Model endpoint not configured. Please configure in Settings.")
@@ -81,12 +92,13 @@ class ChatPage(BasePage):
     def _render_chat_history(self):
         messages = self.state_manager.get_messages()
         if not messages:
-            st.markdown("""
-            <div style="text-align: center; padding: 2rem; opacity: 0.7;">
-                <h3>Welcome to Databricks Intelligence</h3>
-                <p>Start a conversation by typing your question below.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            return
+            # st.markdown("""
+            # <div style="text-align: center; padding: 2rem; opacity: 0.7;">
+            #     <h3>Welcome to Databricks Intelligence</h3>
+            #     <p>Start a conversation by typing your question below.</p>
+            # </div>
+            # """, unsafe_allow_html=True)
         else:
             for message in messages:
                 with st.chat_message(message["role"]):
@@ -103,17 +115,32 @@ class ChatPage(BasePage):
         #     unsafe_allow_html=True
         # )
 
-
     def _handle_chat_input(self):
         prompt = st.chat_input("Ask me anything...")
-        if prompt and prompt.strip():
-            if "file_context" in st.session_state:
-                full_prompt = f"{st.session_state['file_context']}\n\nUser: {prompt}"
-            else:
-                full_prompt = prompt
+        if not prompt or not prompt.strip():
+            return
 
-            self.state_manager.add_message("user", full_prompt)
-            st.rerun()
+        file_context = st.session_state.pop("file_context", None)
+
+        if file_context:
+            # Inject file context only once
+            full_prompt = f"{file_context}\n\nUser: {prompt}"
+        else:
+            full_prompt = prompt
+
+        self.state_manager.add_message("user", full_prompt)
+        st.rerun()
+
+    # def _handle_chat_input(self):
+    #     prompt = st.chat_input("Ask me anything...")
+    #     if prompt and prompt.strip():
+    #         if "file_context" in st.session_state:
+    #             full_prompt = f"{st.session_state['file_context']}\n\nUser: {prompt}"
+    #         else:
+    #             full_prompt = prompt
+
+    #         self.state_manager.add_message("user", full_prompt)
+    #         st.rerun()
 
 
     def _handle_assistant_response(self):

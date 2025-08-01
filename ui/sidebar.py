@@ -19,6 +19,8 @@ class SidebarRenderer:
             self._render_navigation()
             self._render_quick_actions()
             self._render_status()
+
+            
     
     def _render_header(self):
         """Render sidebar header"""

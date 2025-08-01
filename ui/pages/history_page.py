@@ -4,6 +4,7 @@ import os
 from typing import Dict, Any
 from conversations import export_conversation_json
 from .base_page import BasePage
+import pandas as pd
 
 class HistoryPage(BasePage):
     """History page renderer - Conversation management"""
@@ -51,27 +52,77 @@ class HistoryPage(BasePage):
             limit = st.number_input("Max Results", min_value=10, max_value=500, value=50)
         
         return {"search": search, "include_content": include_content, "limit": limit}
-    
+    import pandas as pd
+
     def _render_conversations_list(self, search_params: Dict[str, Any]):
-        """Render the list of conversations"""
+        """Render the list of conversations in a performant table with per-row buttons"""
         try:
             conversations = self.conversation_service.get_conversations(
                 search=search_params["search"],
                 include_content=search_params["include_content"],
                 limit=search_params["limit"]
             )
-            
+
             if not conversations:
                 self._render_no_conversations_message()
                 return
-            
+
             st.subheader(f"Found {len(conversations)} conversation(s)")
-            
-            for i, conv in enumerate(conversations):
-                self._render_conversation_card(i, conv)
-                
+
+            df = pd.DataFrame(conversations)
+            df = df[["conversation_id", "title", "created_at", "model", "messages", "cost"]]
+
+            for _, row in df.iterrows():
+                with st.container():
+                    cols = st.columns([3, 2, 2, 1, 1, 3])
+
+                    cols[0].markdown(f"**{row['title']}**")
+                    cols[1].markdown(row['created_at'])
+                    cols[2].markdown(row['model'])
+                    cols[3].markdown(f"{row['messages']}")
+                    cols[4].markdown(f"${row['cost']:.4f}")
+
+                    with cols[5]:
+                        col_a, col_b, col_c = st.columns(3)
+                        if col_a.button("📂", key=f"load_{row['conversation_id']}", help="Load conversation"):
+                            self._load_conversation(row["conversation_id"], row["title"])
+                        if col_b.button("🗑️", key=f"del_{row['conversation_id']}", help="Delete conversation"):
+                            self._delete_conversation(row["conversation_id"], row["title"])
+                        export_data = export_conversation_json(row["conversation_id"])
+                        col_c.download_button(
+                            "⬇️",
+                            data=export_data,
+                            file_name=f"conversation_{row['conversation_id']}.json",
+                            mime="application/json",
+                            key=f"exp_{row['conversation_id']}"
+                        )
+
+                    st.divider()
+
         except Exception as e:
-            st.error(f" Unable to load conversation history: {e}")
+            st.error(f"⚠️ Unable to load conversation history: {e}")
+
+
+    # def _render_conversations_list(self, search_params: Dict[str, Any]):
+    #     """Render the list of conversations"""
+    #     try:
+    #         conversations = self.conversation_service.get_conversations(
+    #             search=search_params["search"],
+    #             include_content=search_params["include_content"],
+    #             limit=search_params["limit"]
+    #         )
+            
+    #         if not conversations:
+    #             self._render_no_conversations_message()
+    #             return
+            
+    #         st.subheader(f"Found {len(conversations)} conversation(s)")
+            
+    #         for i, conv in enumerate(conversations):
+    #             self._render_conversation_card(i, conv)
+                
+    #     except Exception as e:
+    #         st.error(f" Unable to load conversation history: {e}")
     
     def _render_no_conversations_message(self):
         """Render message when no conversations are found"""

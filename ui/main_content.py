@@ -32,7 +32,7 @@ class MainContentRenderer:
         page_info = {
             "chat": {
                 "title": self.state_manager.get_chat_title(),
-                "subtitle": "Intelligent conversation with your data and models"
+                "subtitle": ""
             },
             "history": {
                 "title": "Conversation History",

@@ -23,7 +23,7 @@ class AppStateManager:
         if "conv_id" not in self.state:
             self.state.conv_id = str(uuid.uuid4())
         if "chat_title" not in self.state:
-            self.state.chat_title = "New Conversation"
+            self.state.chat_title = ""
     
     def _init_navigation_state(self):
         """Initialize navigation state"""
@@ -65,7 +65,7 @@ class AppStateManager:
         """Clear current conversation"""
         self.state.messages = []
         self.state.conv_id = str(uuid.uuid4())
-        self.state.chat_title = "New Conversation"
+        self.state.chat_title = ""
     
     def get_conversation_id(self) -> str:
         """Get current conversation ID"""
