@@ -3,7 +3,7 @@
 An enterprise-ready Streamlit app for LLM-based chat, file-assisted interaction, and cost-aware analytics — optimized for deployment on **Databricks Apps**.
 
 ---
-
+![UX](app-interface.png)
 
 
 ## 🔑 Features
